@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Save Your City! - Flood Protection Game</title>
+  <style>
+    /* ── Reset & body ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0; padding: 0;
+      background-color: #f0f8ff;
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh;
+    }
+
+    /* ── Setup & Game containers ─────────────────────────────────────── */
+    .player-setup,
+    .game-container {
+      width: 90%;
+      max-width: 400px;
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      margin: 10px;
+      position: relative;
+      z-index: 2;
+    }
+    /* hide game until after name entry */
+    .game-container { display: none; max-width: 900px; }
+
+    /* ── Form & button ───────────────────────────────────────────────── */
+    .player-setup h2 { margin-bottom: 20px; text-align: center; }
+    .player-setup input {
+      display: block; margin: 10px 0; padding: 10px; width: 100%;
+      border: 1px solid #ccc; border-radius: 5px;
+    }
+    .button {
+      background: #2196f3; color: white; border: none;
+      padding: 12px; border-radius: 5px; cursor: pointer;
+      font-size: 1.1em; width: 100%; margin-top: 15px;
+      transition: background 0.3s;
+    }
+    .button:hover { background: #1976d2; }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────── */
+    .player-list {
+      display: none; position: fixed; left: 20px; top: 50%;
+      transform: translateY(-50%); background: white; padding: 20px;
+      border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 200px; z-index: 1;
+    }
+    .player-item {
+      margin: 8px 0; padding: 8px; background: #e3f2fd;
+      border-radius: 6px; text-align: center;
+    }
+    .player-item.active {
+      background: white; border: 2px solid #2196f3;
+    }
+
+    /* ── Status & voting ─────────────────────────────────────────────── */
+    .status-bar {
+      display: flex; justify-content: space-between; flex-wrap: wrap;
+      margin-bottom: 20px; padding: 10px; background: #e3f2fd;
+      border-radius: 5px; font-weight: bold; font-size: 1.2em;
+    }
+    .round-indicator {
+      background: #2196f3;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 15px;
+      font-weight: bold;
+      margin-right: 5px;
+    }
+    #votingStatus {
+      display: none; margin: 20px 0; background: #e3f2fd;
+      padding: 10px; border-radius: 8px; font-size: 0.95em;
+    }
+    .protection-options {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
+      gap: 20px; margin: 20px 0;
+    }
+    .protection-card {
+      border: 2px solid #2196f3; padding: 20px;
+      text-align: center; border-radius: 10px; cursor: pointer;
+      background: white; transition: background 0.3s;
+    }
+    .protection-card:hover { background: #e3f2fd; }
+    .protection-card.disabled {
+      opacity: 0.5; cursor: not-allowed; border-color: #ccc;
+    }
+
+    /* ── Dice area (always hidden unless JS shows it) ──────────────── */
+    .dice-display {
+      display: none;               /* <-- stays hidden by default */
+      text-align: center;
+      margin: 20px 0;
+      padding: 20px;
+      background: #e3f2fd;
+      border-radius: 10px;
+      justify-content: center;
+      gap: 40px;
+      flex-wrap: wrap;
+    }
+    .dice-box {
+      display: flex; flex-direction: column; align-items: center;
+      min-width: 120px; margin-bottom: 10px;
+    }
+    .dice {
+      padding: 20px; background: white;
+      border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 100%; height: 100px;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      margin-bottom: 10px;
+    }
+    .weather-icon { font-size: 2em; margin: 5px; }
+    .weather-text { font-weight: bold; color: #1976d2; }
+
+    /* ── Phase Heading ───────────────────────────────────────────────── */
+    .phase-heading {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .phase-heading h2 {
+      margin: 0;
+      flex-grow: 1;
+    }
+
+    /* ── Modals ─────────────────────────────────────────────────────── */
+    .modal {
+      display: none; position: fixed; z-index: 1002;
+      left: 0; top: 0; width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.5);
+    }
+    .modal-content {
+      background: white; margin: 5% auto; padding: 20px;
+      border-radius: 10px; width: 90%; max-width: 600px;
+      position: relative; text-align: left;
+    }
+    .modal-content h2 { margin-top: 0; }
+    .close {
+      position: absolute; top: 10px; right: 15px;
+      font-size: 24px; cursor: pointer; color: #aaa;
+    }
+    .close:hover { color: black; }
+
+    /* ── Instructions Modal ────────────────────────────────────────── */
+    .instruction-content {
+      max-height: 70vh;
+      overflow-y: auto;
+      padding-right: 10px;
+    }
+    .instruction-content h3 {
+      margin-top: 20px;
+      color: #1976d2;
+    }
+    .instruction-content ul {
+      padding-left: 20px;
+    }
+    .instruction-content li {
+      margin-bottom: 8px;
+    }
+    .instruction-step {
+      background: #e3f2fd;
+      padding: 8px 12px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+    }
+    .instruction-image {
+      text-align: center;
+      margin: 15px 0;
+    }
+    .formula {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      font-family: monospace;
+      margin: 10px 0;
+    }
+
+    /* ── Responsive tweaks ─────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .player-list {
+        top: auto; bottom: 0; left: 0; transform: none;
+        width: 100%; display: flex; justify-content: space-around;
+      }
+      .player-item { flex: 1; margin: 5px; }
+      .status-bar { flex-direction: column; align-items: flex-start; }
+      .dice-display { flex-direction: column; }
+    }
+    @media (max-width: 480px) {
+      .player-setup, .game-container { padding: 15px; }
+      .button { font-size: 1em; padding: 10px; }
+      .dice-box { min-width: 100%; }
+      .dice { height: 80px; padding: 15px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Player Setup -->
+  <div id="playerSetup" class="player-setup">
+    <h2>Enter Player Names</h2>
+    <form id="playerForm">
+      <input id="player1" placeholder="Player 1 name" required>
+      <input id="player2" placeholder="Player 2 name">
+      <input id="player3" placeholder="Player 3 name">
+      <input id="player4" placeholder="Player 4 name">
+      <button type="submit" class="button">Start Game</button>
+    </form>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="playerList" class="player-list"></div>
+
+  <!-- Game -->
+  <div id="gameContainer" class="game-container">
+    <h1>Save Your City! – Flood Protection Game</h1>
+    <div class="status-bar">
+      <div>Shared Budget: $<span id="sharedBudget">200</span></div>
+      <div>Adaptation Value: $<span id="adaptationValue">0</span></div>
+      <div>Current Adaptation: <span id="currentAdaptationType">None</span></div>
+      <div>Time Left: <span id="timer">03:00</span></div>
+    </div>
+
+    <div id="phaseTitle" class="phase-heading">
+      <h2>Vote on Protection</h2>
+      <span class="round-indicator">Round <span id="roundCounter">1</span>/4</span>
+    </div>
+    <div id="votingStatus"></div>
+
+    <!-- Protection Options (Voting Phase) -->
+    <div id="protectionOptions" class="protection-options">
+      <div class="protection-card" onclick="castVote('sandbags')">
+        <h3>Sandbags</h3><p>Cost: $2</p><p>Protects: $4</p>
+      </div>
+      <div class="protection-card" onclick="castVote('trees')">
+        <h3>Trees & Parks</h3><p>Cost: $3</p><p>Protects: $6</p>
+      </div>
+      <div class="protection-card" onclick="castVote('wall')">
+        <h3>Flood Wall</h3><p>Cost: $5</p><p>Protects: $10</p>
+      </div>
+    </div>
+
+    <!-- Weather Dice (Weather Phase) -->
+    <div id="diceArea" class="dice-display">
+      <div class="dice-box">
+        <div id="dice1" class="dice">
+          <div class="weather-icon">🎲</div>
+          <div class="weather-text">Click Roll to see weather</div>
+        </div>
+        <button id="rollDice1" class="button">Roll!</button>
+      </div>
+      <div class="dice-box">
+        <div id="dice2" class="dice">
+          <div class="weather-icon">🎲</div>
+          <div class="weather-text">Click Roll to see weather</div>
+        </div>
+        <button id="rollDice2" class="button">Roll!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Instructions Modal -->
+  <div id="instructionsModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeInstructionsModal()">&times;</span>
+      <h2>Game Instructions</h2>
+      <div class="instruction-content">
+        <p>Welcome to Save Your City! In this game, you'll work together to protect your city from flooding.</p>
+
+        <h3>Game Overview</h3>
+        <div class="instruction-step">
+          <strong>The game lasts 4 rounds</strong>. Each round consists of:
+          <ol>
+            <li>Vote on which protection to build</li>
+            <li>Roll weather dice to see what floods occur</li>
+            <li>Calculate damage and update budget</li>
+          </ol>
+        </div>
+
+        <h3>How Damage is Calculated</h3>
+        <p>After you roll the weather dice, the Total Threat is calculated as:</p>
+        <div class="formula">
+          Total Threat = Weather Event 1 Damage + Weather Event 2 Damage + Compound Effect
+        </div>
+        <p>Where:</p>
+        <ul>
+          <li>Each weather event has a severity level (2-9) that determines its damage</li>
+          <li>Weather damage = Severity × 3</li>
+          <li>If two different weather events occur together, a Compound Effect adds +$10 extra damage</li>
+        </ul>
+
+        <h3>Protection & Budget</h3>
+        <p>Your city has a starting budget of $200. You vote to spend this on different protections:</p>
+        <ul>
+          <li>Sandbags: Cost $2, Protects from $4 damage</li>
+          <li>Trees & Parks: Cost $3, Protects from $6 damage</li>
+          <li>Flood Wall: Cost $5, Protects from $10 damage</li>
+        </ul>
+        <p>Your final damage is calculated as:</p>
+        <div class="formula">
+          Final Damage = Max(0, Total Threat - Total Protection Value)
+        </div>
+        <p>This damage is subtracted from your shared budget. If your budget reaches $0, your city is in crisis!</p>
+
+        <h3>Maintenance</h3>
+        <p>After the second round, you'll need to decide whether to pay maintenance costs ($2) or risk reduced protection (30% less effective).</p>
+      </div>
+      <button class="button" onclick="closeInstructionsModal()">Start Playing!</button>
+    </div>
+  </div>
+
+  <!-- Adaptation Modal -->
+  <div id="adaptModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeAdaptModal()">&times;</span>
+      <h2 id="adaptTitle"></h2>
+      <p id="adaptText"></p>
+      <button class="button" onclick="closeAdaptModal()">OK</button>
+    </div>
+  </div>
+
+  <!-- Compound Flood Explanation Modal -->
+  <div id="compoundModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeCompoundModal()">&times;</span>
+      <h2>What is Compound Flooding?</h2>
+      <p>
+        Compound flooding happens when more than one type of flooding occurs at the same time.
+        For example, ocean storm surge, heavy rain, and rivers overflowing can all happen together.
+      </p>
+      <button class="button" onclick="closeCompoundModal()">I see!</button>
+    </div>
+  </div>
+
+  <!-- Results Modal -->
+  <div id="resultsModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeResultsModal()">&times;</span>
+      <h2>Flooding Results</h2>
+      <div id="diceResults"></div>
+      <div id="damageResults"></div>
+      <div id="budgetResults"></div>
+      <button class="button" onclick="closeResultsModal()">Continue</button>
+    </div>
+  </div>
+
+  <!-- Maintenance Modal -->
+  <div id="maintenanceModal" class="modal">
+    <div class="modal-content">
+      <h2>Maintenance Decision</h2>
+      <p>Do you want to maintain your adaptations?</p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+        <button class="button" style="background-color: #26a69a;" onclick="payMaintenance()">
+          Pay $2 Maintenance
+        </button>
+        <button class="button" style="background-color: #e53935;" onclick="skipMaintenance()">
+          Skip Maintenance (-30% Protection)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="gameOverModal" class="modal">
+    <div class="modal-content">
+      <h2>Game Over!</h2>
+      <div id="finalResults"></div>
+      <button class="button" onclick="resetGame()">Play Again</button>
+    </div>
+  </div>
+
+  <script>
+    let players = [], currentPlayerIndex = 0;
+    let sharedBudget = 200, adaptationValue = 0;
+    let votes = [], compoundShown = false;
+    const shownWeathers = new Set();
+    let timer;
+    let timeLeft = 180; // 3 minutes in seconds
+    let roundCount = 0; // Track number of rounds
+    let currentAdaptation = "None"; // Track current adaptation type
+    let currentPhase = "voting"; // Track current phase (voting or weather)
+
+    const protectionTypes = {
+      sandbags: { name:"Sandbags", cost:2, protection:4 },
+      trees:   { name:"Trees & Parks", cost:3, protection:6 },
+      wall:    { name:"Flood Wall", cost:5, protection:10 }
+    };
+    const weatherIcons = {
+      'River Overflow 🌊':'🌊','High Tide 🌓':'🌑',
+      'Light Rain 🌦️':'🌦️','Heavy Rain 🌧️':'🌧️',
+      'Thunderstorm ⛈️':'⛈️','Storm Surge 🌊':'🌊'
+    };
+    const weatherExplanations = {
+      'River Overflow 🌊':'This event represents river overflow, flooding low‑lying areas.',
+      'High Tide 🌓':'High tide pushes ocean water inland.',
+      'Light Rain 🌦️':'Light rain accumulates over time.',
+      'Heavy Rain 🌧️':'Heavy rain overwhelms drainage systems.',
+      'Thunderstorm ⛈️':'Thunderstorms cause flash flooding.',
+      'Storm Surge 🌊':'Storm surge floods coastal zones.'
+    };
+    const weatherSeverity = {
+      'River Overflow 🌊': 8,
+      'High Tide 🌓': 5,
+      'Thunderstorm ⛈️': 6,
+      'Light Rain 🌦️': 2,
+      'Heavy Rain 🌧️': 7,
+      'Storm Surge 🌊': 9
+    };
+    const weatherConsequences = {
+      'River Overflow 🌊': 'River flooding causes significant damage to buildings near water, destroys crops, and requires evacuation. Costs $20 from budget.',
+      'High Tide 🌓': 'Tidal flooding puts pressure on coastal drainage and causes "sunny day flooding" even without rain. Costs $12 from budget.',
+      'Thunderstorm ⛈️': 'Thunderstorms produce heavy rainfall in short periods causing flash flooding in urban areas. Costs $15 from budget.',
+      'Light Rain 🌦️': 'Light rain poses minimal flood risk but contributes to overall water volume. Costs $5 from budget.',
+      'Heavy Rain 🌧️': 'Heavy rainfall leads to flash flooding, particularly in urban areas with reduced ground absorption. Costs $18 from budget.',
+      'Storm Surge 🌊': 'Storm surge causes abnormal water level rise with widespread infrastructure damage and severe beach erosion. Costs $25 from budget.'
+    };
+
+    // Render who voted what - from second code
+    function renderVotes() {
+      const dv = document.getElementById('votingStatus');
+      dv.innerHTML = votes
+        .map(v => `<strong>${v.player}</strong> voted: ${protectionTypes[v.choice].name}`)
+        .join('<br>');
+      dv.style.display = 'block';
+    }
+
+    // Format time function
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Timer function
+    function startTimer() {
+      clearInterval(timer);
+      timeLeft = 180; // Reset to 3 minutes
+      document.getElementById('timer').textContent = formatTime(timeLeft);
+
+      timer = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer').textContent = formatTime(timeLeft);
+
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          // If time runs out, auto-select a random protection option for current player
+          if (currentPhase === "voting" && votes.length < players.length) {
+            const options = ['sandbags', 'trees', 'wall'];
+            const randomChoice = options[Math.floor(Math.random() * options.length)];
+            castVote(randomChoice);
+          }
+        }
+      }, 1000);
+    }
+
+    // Start game on form submit
+    document.getElementById('playerForm').addEventListener('submit', e=>{
+      e.preventDefault();
+      for(let i=1;i<=4;i++){
+        const nm = document.getElementById(`player${i}`).value.trim();
+        if(nm) players.push(nm);
+      }
+      if(!players.length) return alert('Enter at least one player name.');
+      document.getElementById('playerSetup').style.display   = 'none';
+      document.getElementById('playerList').style.display    = 'block';
+      document.getElementById('gameContainer').style.display = 'block';
+      renderPlayerList();
+      updateStatus();
+
+      // Show instructions modal first
+      document.getElementById('instructionsModal').style.display = 'block';
+    });
+
+    function closeInstructionsModal() {
+      document.getElementById('instructionsModal').style.display = 'none';
+      // Start the timer after instructions are closed
+      startTimer();
+    }
+
+    function renderPlayerList(){
+      const ul = document.getElementById('playerList');
+      ul.innerHTML = '';
+      players.forEach((p,i)=>{
+        const d = document.createElement('div');
+        d.className = 'player-item'+(i===currentPlayerIndex?' active':'');
+        d.textContent = p;
+        ul.appendChild(d);
+      });
+    }
+
+    function updateStatus(){
+      document.getElementById('sharedBudget').textContent = sharedBudget;
+      document.getElementById('adaptationValue').textContent = adaptationValue;
+      document.getElementById('currentAdaptationType').textContent = currentAdaptation;
+      document.getElementById('roundCounter').textContent = roundCount + 1;
+      renderPlayerList();
+    }
+
+    function castVote(type){
+      if (currentPhase !== "voting") return;
+
+      const name = players[currentPlayerIndex];
+      if(votes.some(v=>v.player===name)) return alert('You already voted.');
+      votes.push({player:name,choice:type});
+      renderVotes(); // Show who voted what from second code
+      if(votes.length===players.length) {
+        finishVoting();
+        clearInterval(timer); // Stop the timer when all votes are in
+      }
+      else {
+        currentPlayerIndex=(currentPlayerIndex+1)%players.length;
+        updateStatus();
+        // Reset the timer for the next player
+        timeLeft = 180;
+        document.getElementById('timer').textContent = formatTime(timeLeft);
+      }
+    }
+
+    function finishVoting(){
+      // tally
+      const tally = {};
+      votes.forEach(v=> tally[v.choice]=(tally[v.choice]||0)+1);
+      // show aggregated results
+      const dv = document.getElementById('votingStatus');
+      dv.innerHTML = Object.keys(tally).map(k=>`${protectionTypes[k].name}: ${tally[k]}`).join('<br>');
+      dv.style.display='block';
+
+      // apply adaptation
+      let title,text;
+      const max = Math.max(...Object.values(tally));
+      const top = Object.keys(tally).filter(k=>tally[k]===max);
+      if(players.length===2&&top.length>1){
+        title='No Adaptation Built';
+        text='No agreement reached; no adaptation built this round.';
+        currentAdaptation = "None";
+      } else {
+        const sel = top[Math.floor(Math.random()*top.length)];
+        sharedBudget-=protectionTypes[sel].cost;
+        adaptationValue+=protectionTypes[sel].protection;
+        title=`Adaptation Built: ${protectionTypes[sel].name}`;
+        text=`Built ${protectionTypes[sel].name} for ${protectionTypes[sel].cost}.`;
+        currentAdaptation = protectionTypes[sel].name;
+      }
+      document.getElementById('adaptTitle').textContent=title;
+      document.getElementById('adaptText').textContent=text;
+      document.getElementById('adaptModal').style.display='block';
+
+      // Update status to show new adaptation
+      updateStatus();
+    }
+
+    function closeAdaptModal(){
+      document.getElementById('adaptModal').style.display='none';
+
+      // If we have a pending weather explanation to show after modal closes
+      if (pendingWeatherExplanation) {
+        pendingWeatherExplanation();
+      } else if(!compoundShown){
+        compoundShown=true;
+        document.getElementById('compoundModal').style.display='block';
+      } else {
+        // subsequent rounds → go straight to weather phase
+        switchToWeatherPhase();
+      }
+    }
+
+    function closeCompoundModal(){
+      document.getElementById('compoundModal').style.display='none';
+      // Switch to weather phase after compound explanation
+      switchToWeatherPhase();
+    }
+
+    function switchToWeatherPhase() {
+      currentPhase = "weather";
+      document.getElementById('phaseTitle').innerHTML = '<h2>Weather Events</h2><span class="round-indicator">Round <span>' + (roundCount + 1) + '</span>/4</span>';
+      votes=[];
+      const dv=document.getElementById('votingStatus');
+      dv.style.display='none'; dv.innerHTML='';
+      document.getElementById('protectionOptions').style.display='none';
+      document.getElementById('diceArea').style.display='flex';
+
+      updateStatus();
+      clearInterval(timer); // Stop the timer when going to weather phase
+    }
+
+    // Variables to track rolled dice
+    let rolledDice = [];
+    let bothDiceRolled = false;
+    let pendingWeatherExplanation = null;
+
+    function rollDice(num){
+      const r=Math.floor(Math.random()*6)+1;
+      const w=['River Overflow 🌊','High Tide 🌓','Thunderstorm ⛈️','Light Rain 🌦️','Heavy Rain 🌧️','Storm Surge 🌊'][r-1];
+      const el=document.getElementById(`dice${num}`);
+      el.querySelector('.weather-icon').textContent=weatherIcons[w];
+      el.querySelector('.weather-text').textContent=w;
+
+      // Disable the roll button
+      document.getElementById(`rollDice${num}`).disabled = true;
+
+      // Add to rolled dice array
+      rolledDice.push(w);
+
+      // Check if this weather hasn't been shown before
+      if(!shownWeathers.has(w)){
+        shownWeathers.add(w);
+        // Show explanation immediately like in the attached code
+        document.getElementById('adaptTitle').textContent = w;
+        document.getElementById('adaptText').textContent = weatherExplanations[w];
+        document.getElementById('adaptModal').style.display = 'block';
+      }
+
+      // If both dice are rolled, show results
+      if (rolledDice.length === 2) {
+        bothDiceRolled = true;
+        // Only show results after closing any open modal
+        if (document.getElementById('adaptModal').style.display !== 'block') {
+          setTimeout(showResults, 1000); // Show results after a short delay
+        } else {
+          // Set up handler to show results after the modal is closed
+          pendingWeatherExplanation = function() {
+            setTimeout(showResults, 1000);
+            pendingWeatherExplanation = null;
+          };
+        }
+      }
+    }
+
+    function showResults() {
+      // Calculate damage from both dice
+      let totalDamage = 0;
+      let resultsHTML = '<h3>Weather Events:</h3>';
+
+      rolledDice.forEach(weather => {
+        const severity = weatherSeverity[weather];
+        const cost = severity * 3; // Convert severity to cost
+        totalDamage += cost;
+
+        resultsHTML += `<p><strong>${weather}</strong> - Severity: ${severity}/10</p>`;
+      });
+
+      // Apply compound effect if two different weather events
+      let compoundEffect = 0;
+      if (rolledDice[0] !== rolledDice[1]) {
+        compoundEffect = 10; // Additional damage from compound flooding
+        resultsHTML += `<p><strong>Compound Flooding Effect:</strong> +$10 damage</p>`;
+      }
+
+      // Calculate final damage after protection
+      const totalThreat = totalDamage + compoundEffect;
+      const mitigatedDamage = Math.max(0, totalThreat - adaptationValue);
+
+      // Display results
+      document.getElementById('diceResults').innerHTML = resultsHTML;
+
+      let damageHTML = '<h3>Impact Assessment:</h3>';
+      damageHTML += `<p>Total Threat: ${totalDamage}`;
+      if (compoundEffect > 0) damageHTML += ` + ${compoundEffect} (compound effect)`;
+      damageHTML += ` = ${totalThreat}</p>`;
+      damageHTML += `<p>Protection Value: ${adaptationValue}</p>`;
+      damageHTML += `<p>Final Damage: ${mitigatedDamage}</p>`;
+
+      document.getElementById('damageResults').innerHTML = damageHTML;
+
+      // Update budget
+      const newBudget = Math.max(0, sharedBudget - mitigatedDamage);
+      document.getElementById('budgetResults').innerHTML =
+        `<h3>Budget Impact:</h3><p>Previous Budget: ${sharedBudget}</p><p>Remaining Budget: ${newBudget}</p>`;
+
+      // Update actual budget
+      sharedBudget = newBudget;
+
+      // Show results modal
+      document.getElementById('resultsModal').style.display = 'block';
+
+      // Reset for next round
+      rolledDice = [];
+      bothDiceRolled = false;
+    }
+
+    function closeResultsModal() {
+      document.getElementById('resultsModal').style.display = 'none';
+
+      // Increment round count
+      roundCount++;
+
+      // Check if game is over (after 4 rounds)
+      if (roundCount >= 4) {
+        showGameOverScreen();
+        return;
+      }
+
+      // Show maintenance modal after second round
+      if (roundCount === 2) {
+        document.getElementById('maintenanceModal').style.display = 'block';
+      } else {
+        startNextRound();
+      }
+    }
+
+    function showGameOverScreen() {
+      let resultMessage = "";
+      if (sharedBudget >= 100) {
+        resultMessage = "<h3>Excellent Protection!</h3><p>Your city is well-protected with a healthy budget of $" + sharedBudget + " remaining.</p>";
+      } else if (sharedBudget >= 50) {
+        resultMessage = "<h3>Good Protection</h3><p>Your city survived with $" + sharedBudget + " remaining in the budget.</p>";
+      } else if (sharedBudget > 0) {
+        resultMessage = "<h3>Barely Survived</h3><p>Your city made it through, but with only $" + sharedBudget + " left in the budget. That was close!</p>";
+      } else {
+        resultMessage = "<h3>City in Crisis</h3><p>Your budget is depleted! Your city will need emergency assistance to recover from the flooding.</p>";
+      }
+
+      document.getElementById('finalResults').innerHTML = resultMessage +
+        "<p>You built adaptations worth $" + adaptationValue + " in protection value.</p>" +
+        "<p>Thanks for playing! Try different strategies next time.</p>";
+
+      document.getElementById('gameOverModal').style.display = 'block';
+    }
+
+    function resetGame() {
+      // Reset all game variables
+      players = [];
+      currentPlayerIndex = 0;
+      sharedBudget = 200;
+      adaptationValue = 0;
+      votes = [];
+      compoundShown = false;
+      shownWeathers.clear();
+      roundCount = 0;
+      currentAdaptation = "None";
+      currentPhase = "voting";
+
+      // Hide all game elements and show player setup
+      document.getElementById('gameOverModal').style.display = 'none';
+      document.getElementById('gameContainer').style.display = 'none';
+      document.getElementById('playerList').style.display = 'none';
+      document.getElementById('playerSetup').style.display = 'block';
+
+      // Reset inputs
+      for (let i = 1; i <= 4; i++) {
+        document.getElementById(`player${i}`).value = '';
+      }
+
+      // Reset UI elements
+      document.getElementById('phaseTitle').innerHTML = '<h2>Vote on Protection</h2><span class="round-indicator">Round <span id="roundCounter">1</span>/4</span>';
+      document.getElementById('protectionOptions').style.display = 'grid';
+      document.getElementById('diceArea').style.display = 'none';
+      document.getElementById('votingStatus').style.display = 'none';
+      document.getElementById('votingStatus').innerHTML = '';
+
+      // Reset dice displays to initial state
+      const dice1 = document.getElementById('dice1');
+      const dice2 = document.getElementById('dice2');
+      dice1.querySelector('.weather-icon').textContent = '🎲';
+      dice1.querySelector('.weather-text').textContent = 'Click Roll to see weather';
+      dice2.querySelector('.weather-icon').textContent = '🎲';
+      dice2.querySelector('.weather-text').textContent = 'Click Roll to see weather';
+
+      // Enable roll buttons
+      document.getElementById('rollDice1').disabled = false;
+      document.getElementById('rollDice2').disabled = false;
+
+      clearInterval(timer);
+    }
+
+    function payMaintenance() {
+      // Pay $2 for maintenance
+      sharedBudget -= 2;
+      // No reduction in protection value
+      document.getElementById('maintenanceModal').style.display = 'none';
+      startNextRound();
+    }
+
+    function skipMaintenance() {
+      // Skip maintenance - reduce protection by 30%
+      adaptationValue = Math.floor(adaptationValue * 0.7); // Apply 30% reduction
+      document.getElementById('maintenanceModal').style.display = 'none';
+      startNextRound();
+    }
+
+    function startNextRound() {
+      // Reset UI for next round
+      currentPhase = "voting";
+      document.getElementById('phaseTitle').innerHTML = '<h2>Vote on Protection</h2><span class="round-indicator">Round <span>' + (roundCount + 1) + '</span>/4</span>';
+      document.getElementById('protectionOptions').style.display = 'grid';
+      document.getElementById('diceArea').style.display = 'none';
+      document.getElementById('votingStatus').style.display = 'none';
+      document.getElementById('votingStatus').innerHTML = '';
+
+      // Reset dice displays to initial state
+      const dice1 = document.getElementById('dice1');
+      const dice2 = document.getElementById('dice2');
+      dice1.querySelector('.weather-icon').textContent = '🎲';
+      dice1.querySelector('.weather-text').textContent = 'Click Roll to see weather';
+      dice2.querySelector('.weather-icon').textContent = '🎲';
+      dice2.querySelector('.weather-text').textContent = 'Click Roll to see weather';
+
+      // Enable roll buttons again
+      document.getElementById('rollDice1').disabled = false;
+      document.getElementById('rollDice2').disabled = false;
+
+      // Start next round
+      currentPlayerIndex = 0;
+      votes = [];
+      updateStatus();
+      startTimer();
+    }
+
+    document.getElementById('rollDice1').onclick=()=>rollDice(1);
+    document.getElementById('rollDice2').onclick=()=>rollDice(2);
+  </script>
+
+</body>
+</html>
